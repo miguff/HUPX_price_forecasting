@@ -8,17 +8,18 @@ import wandb
 from Optune_simulation_env import get_best_params, walk_forward_predict_test
 
 
-N_TRIALS = 5
+N_TRIALS = 30
 FINAL_TEST_DAYS = 30
-OPTUNA_VAL_DAYS = 21
+OPTUNA_VAL_DAYS = 30
 
 def main():
 
     models = [
-        "lightgbm",
-        "catboost",
-        "xgboost",
-        "rf"
+        #"lightgbm",
+        #"catboost",
+        #"xgboost",
+        #"rf",
+        'dnn'
     ]
     
     real_ds = load_data(False)

@@ -7,6 +7,7 @@ import xgboost as xgb
 from catboost import CatBoostRegressor
 import wandb
 from sklearn.ensemble import RandomForestRegressor
+from .dnn_model import UniversalTorchWrapper
 
 def get_best_params(
     ds: pd.DataFrame,   
@@ -41,7 +42,7 @@ def get_best_params(
             if  i % retrain_every == 0:
                 # Need a fresh model each retrain for sklearn pipelines
 
-                model = get_model(model_type, trial)
+                model = get_model(model_type, trial, FEATURE_COLS)
 
 
                 if hasattr(model, "fit"):
@@ -120,7 +121,7 @@ def walk_forward_predict_test(
 
             #Ide kell a modellt behozni
 
-            model, params = get_trained_model(model_type, best_params)
+            model, params = get_trained_model(model_type, best_params, feature_cols)
             model.fit(train_slice[feature_cols], train_slice[target_col], sample_weight=w)
             fitted = model
 
@@ -191,7 +192,7 @@ def fit_final_model_before_test(
     return model
 
 
-def get_model(model_value : str, trial):
+def get_model(model_value : str, trial, FEATURE_COLS: list):
 
 
     match model_value:
@@ -274,8 +275,26 @@ def get_model(model_value : str, trial):
                 n_jobs=-1
             )
             return model
+        case "dnn":
+            current_input_dim = len(FEATURE_COLS)
+            arch = trial.suggest_categorical("architecture", ["DNN", "LSTM", "GRU"])
+    
+            # 2. Optuna picks the depth (number of layers)
+            n_layers = trial.suggest_int("n_layers", 1, 5) # 1 to 5 layers deep
+            
+            params = {
+                "architecture": arch,
+                "n_layers": n_layers,
+                "h1": trial.suggest_int("h1", 16, 256), # Neurons per layer
+                "lr": trial.suggest_float("lr", 1e-4, 1e-2, log=True),
+                "dropout": trial.suggest_float("dropout", 0.0, 0.5),
+                "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128]),
+                "epochs": trial.suggest_int("epoch", 5, 50), 
+            }
+
+            return UniversalTorchWrapper(model_type=arch, params=params, input_dim=current_input_dim)
         
-def get_trained_model(model_value:  str, best_params):
+def get_trained_model(model_value:  str, best_params, FEATURE_COLS:list):
     
     
     match model_value:
@@ -350,4 +369,20 @@ def get_trained_model(model_value:  str, best_params):
             model = RandomForestRegressor(**params)
             return model, params
 
+        case "dnn":
+            current_input_dim = len(FEATURE_COLS)
+            arch = best_params['architecture']
+            params = {
+                "architecture": best_params['architecture'],
+                "n_layers": best_params['n_layers'],
+                "h1": best_params["h1"],
+                "lr": best_params["lr"],
+                "dropout": best_params["dropout"],
+                "batch_size": best_params["batch_size"],
+                "epochs": best_params["epoch"] 
+            }
+
+            model = UniversalTorchWrapper(model_type=arch, params=params, input_dim=current_input_dim)
+
+            return model, params
     
