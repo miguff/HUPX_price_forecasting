@@ -6,6 +6,7 @@ from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 import shap
 import wandb
 from Optune_simulation_env import get_best_params, walk_forward_predict_test
+from utils import load_data
 
 
 N_TRIALS = 30
@@ -15,31 +16,31 @@ OPTUNA_VAL_DAYS = 30
 def main():
 
     models = [
-        #"lightgbm",
-        #"catboost",
-        #"xgboost",
-        #"rf",
+        "lightgbm",
+        "catboost",
+        "xgboost",
+        "rf",
         'dnn'
     ]
     
-    real_ds = load_data(False)
-    synt_ds = load_data()
-
-
-    #// Run optuna for Real
-    for i in models:
-        print("### Doing model: ", i, "For the Real data only")
-        run_uptuna(real_ds, i, "real")
+    real_ds = load_data("real")
+    synt_ds_lgbm = load_data("lgbm")
+    synt_ds_spline = load_data("spline")
+    synt_ds_intra = load_data("intra")
 
     #// Run optuna for synt
     for i in models:
         print("### Doing model: ", i, "For the Synth data only")
-        run_uptuna(synt_ds, i, "synthetic")
+        run_uptuna(synt_ds_lgbm, i, "lightgbm")
+        run_uptuna(real_ds, i, "real")
+        run_uptuna(synt_ds_spline, i, "spliine")
+        run_uptuna(synt_ds_intra, i, "intra")
 
 
 
-def run_uptuna(ds: pd.DataFrame, model: str, data_type: str):
-    wandb.init(project="EnergyPrices", name=f"{model}_{data_type}_2", reinit=True)
+def run_uptuna(ds: pd.DataFrame, model: str, synth_type :str, seed: int = 1):
+    wandb.init(project="EnergyPrices_new", name=f"{model}_{synth_type}", reinit=True)
+    np.random.seed(seed)
     
     FEATURES = features()
     all_days = np.array(sorted(ds["day"].unique()))
@@ -60,7 +61,9 @@ def run_uptuna(ds: pd.DataFrame, model: str, data_type: str):
         val_days=optuna_val_days,
         n_trials=N_TRIALS,
         FEATURE_COLS=FEATURES,
-        model_type = model
+        model_type = model,
+        seed=seed,  # IMPORTANT if supported
+        study_name=f"HUPX_{model}_{synth_type}"
     )
 
     best_params = study.best_params
@@ -93,19 +96,6 @@ def run_uptuna(ds: pd.DataFrame, model: str, data_type: str):
     wandb.finish()
 
 
-
-def load_data(synt: bool = True):
-
-    if synt:
-        all_data_set = pd.read_csv(r"processed_data\\Processed_data_all.csv", index_col=0)
-    else:
-        all_data_set = pd.read_csv(r"processed_data\\Processed_data_real.csv", index_col=0)
-    all_data_set
-    # Feature lags in 15-min steps
-    
-
-    return all_data_set
-
 def features():
     STATE_LAGS = [1, 4, 8, 24, 96, 192, 672]   # 15m, 1h, 2h, 6h, 1d, 2d, 1w
     STATE_ROLL_WINS = [24, 96, 672]            # rolling windows on past y (6h, 1d, 1w)
@@ -122,7 +112,7 @@ def features():
 
     HORIZON_FEATURES = [
         "h", "q_in_hour_target", "qod_target", "hod_target", "dow_target", "month_target", "is_weekend_target",
-        "load_fc_target", "load_ramp_1h_target", "load_ramp_6h_target","generation_fc", "renewables_solar_fc","renewables_wind_fc",
+        "load_fc_target", "load_ramp_1h_target", "load_ramp_6h_target", "renewables_solar_fc","renewables_wind_fc",
         "load_day_mean", "load_day_max", "load_day_min", "q_in_hour_sin", "q_in_hour_cos", "qod_sin", "qod_cos", "hod_sin", "hod_cos", "dow_sin", "dow_cos", "month_sin", "month_cos"
     ]
 
