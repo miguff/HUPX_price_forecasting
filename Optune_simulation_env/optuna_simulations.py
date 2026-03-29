@@ -15,7 +15,9 @@ def get_best_params(
     val_days: np.ndarray,
     n_trials: int,
     FEATURE_COLS : list,
-    model_type : str
+    model_type : str,
+    seed : int,
+    study_name : str
 ):
     
     #// It does not train every day, it does not add to the valid to the next train cycle
@@ -65,15 +67,15 @@ def get_best_params(
         y_hat = np.concatenate(preds)
 
         mae = mean_absolute_error(y_true, y_hat)
-        wandb.log({"trial_mae": mae, "trial_number": trial.number})
+        #wandb.log({"trial_mae": mae, "trial_number": trial.number})
         return mae
-    
-    study = optuna.create_study(direction="minimize", study_name="HUPX_test")
+    sampler = optuna.samplers.TPESampler(seed=seed)
+    study = optuna.create_study(direction="minimize", study_name=study_name, sampler=sampler)
     study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
 
     print("Best overall value:", study.best_value)
     print("Best overall params:", study.best_params)
-    wandb.log({"best_mae": study.best_value, "best_params": study.best_params})
+    #wandb.log({"best_mae": study.best_value, "best_params": study.best_params})
     return study
 
 
