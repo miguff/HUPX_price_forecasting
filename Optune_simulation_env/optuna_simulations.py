@@ -71,7 +71,7 @@ def get_best_params(
         return mae
     sampler = optuna.samplers.TPESampler(seed=seed)
     study = optuna.create_study(direction="minimize", study_name=study_name, sampler=sampler)
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=True)
+    study.optimize(objective, n_trials=n_trials)
 
     print("Best overall value:", study.best_value)
     print("Best overall params:", study.best_params)
