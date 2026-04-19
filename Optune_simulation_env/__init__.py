@@ -1,1 +1,1 @@
-from .optuna_simulations import get_best_params, walk_forward_predict_test
+from .optuna_simulations import get_best_params, walk_forward_predict_test, get_trained_model
