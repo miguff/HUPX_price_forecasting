@@ -1,0 +1,13 @@
+{
+  "synth_weight": 0.5290460450733114,
+  "retrain_every": 4,
+  "lgb_n_estimators": 1624,
+  "lgb_lr": 0.07854453063015453,
+  "lgb_num_leaves": 106,
+  "lgb_min_child_samples": 30,
+  "lgb_subsample": 0.7260320649189,
+  "lgb_colsample": 0.7748693962548339,
+  "lgb_reg_alpha": 0.0022621890215528393,
+  "lgb_reg_lambda": 1.1418293908728496e-07,
+  "seed": 9
+}

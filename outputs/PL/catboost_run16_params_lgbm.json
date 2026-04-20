@@ -1,0 +1,9 @@
+{
+  "synth_weight": 0.5524457522050454,
+  "retrain_every": 1,
+  "depth": 6,
+  "learning_rate": 0.003652064506259812,
+  "iterations": 361,
+  "l2_leaf_reg": 9,
+  "seed": 16
+}
