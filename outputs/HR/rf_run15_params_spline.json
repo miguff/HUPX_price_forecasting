@@ -1,0 +1,10 @@
+{
+  "synth_weight": 0.7467831009564764,
+  "retrain_every": 9,
+  "n_estimators": 83,
+  "max_depth": 29,
+  "min_samples_split": 15,
+  "min_samples_leaf": 7,
+  "max_features": "log2",
+  "seed": 15
+}
