@@ -1,0 +1,4 @@
+method,mae_mean,diff_mean,ci_low,ci_high,p_value,effect_size_d,p_corrected,significant,improvement_%
+Synth LGBM,15.985,-3.6282,-4.1345,-3.1218,6.33e-11,-3.684,1.90e-10,True,18.5
+Spline,16.1939,-3.4193,-3.9589,-2.8797,3.94e-10,-3.258,7.89e-10,True,17.43
+Intra,16.6141,-2.999,-3.5197,-2.4784,1.60e-09,-2.961,1.60e-09,True,15.29
