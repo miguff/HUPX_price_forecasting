@@ -8,7 +8,8 @@ import wandb
 from Optune_simulation_env import (
     get_best_params,
     walk_forward_predict_test,
-    get_trained_model
+    get_trained_model,
+    run_dnn_pipeline
 )
 from utils import load_data
 from scipy.stats import ttest_rel
@@ -132,6 +133,27 @@ def run_optuna_once(ds: pd.DataFrame, model: str, seed: int):
     tune_days = all_days[:-FINAL_TEST_DAYS]
 
     optuna_val_days = tune_days[-OPTUNA_VAL_DAYS:]
+    optuna_train_days = tune_days[:-OPTUNA_VAL_DAYS]
+
+    # ==========================================
+    # 🔥 BRANCH HERE
+    # ==========================================
+    if model == "dnn":
+
+        return run_dnn_pipeline(
+            ds,
+            FEATURES,
+            optuna_train_days,
+            optuna_val_days,
+            final_test_days,
+            n_trials=N_TRIALS,
+            seed = seed,
+            study_name = f"EnergyPrice_{model}"
+        )
+
+    # ==========================================
+    # 🌲 DEFAULT: WALK-FORWARD MODELS
+    # ==========================================
     optuna_train_days_pool = all_days
 
     study = get_best_params(

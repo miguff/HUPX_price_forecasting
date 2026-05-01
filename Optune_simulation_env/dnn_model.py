@@ -47,8 +47,8 @@ class UniversalTorchWrapper:
         self.model_type = model_type
         self.params = params
         self.input_dim = input_dim
-        # The 'window_size' should be a hyperparameter suggested by Optuna
-        self.window_size = params.get("window_size", 96) 
+        # Suggest window_size in Optuna (e.g., 24 for daily sequences)
+        self.window_size = params.get("window_size", 24) 
         
         self.feature_scaler = StandardScaler()
         self.target_scaler = StandardScaler()
@@ -56,74 +56,83 @@ class UniversalTorchWrapper:
         if model_type == "DNN":
             self.model = DynamicDNN(input_dim, params).to(self.device)
         else:
-            # RNN/LSTM now receives (batch, window_size, input_dim)
             self.model = DynamicRNN(input_dim, params, r_type=model_type).to(self.device)
             
         self.criterion = nn.HuberLoss()
 
-    def _create_sequences(self, X_np, y_np=None):
-        """
-        Converts flat tabular data into sequences of length self.window_size.
-        """
-        X_seq, y_seq = [], []
-        # We need enough history to create the first window
-        for i in range(len(X_np) - self.window_size + 1):
-            X_seq.append(X_np[i : i + self.window_size])
-            if y_np is not None:
-                y_seq.append(y_np[i + self.window_size - 1])
-        
+    def create_sequences(self, X, y=None, window_size=96):
+        X_seq, y_seq, idx = [], [], []
+
+        for i in range(window_size - 1, len(X)):
+            X_seq.append(X[i - window_size + 1:i + 1])
+            if y is not None:
+                y_seq.append(y[i])
+            idx.append(i)
+
         X_seq = np.array(X_seq)
-        if y_np is not None:
-            return X_seq, np.array(y_seq)
-        return X_seq
+
+        if y is not None:
+            return X_seq, np.array(y_seq), np.array(idx)
+
+        return X_seq, np.array(idx)
 
     def fit(self, X, y, sample_weight=None):
-        X_scaled = self.feature_scaler.fit_transform(X.values).astype(np.float32)
-        y_scaled = self.target_scaler.fit_transform(y.values.reshape(-1, 1)).flatten().astype(np.float32)
+        X_np = self.feature_scaler.fit_transform(X.values).astype(np.float32)
+        y_np = self.target_scaler.fit_transform(y.values.reshape(-1, 1)).flatten().astype(np.float32)
 
         if self.model_type in ["LSTM", "GRU"]:
-            X_t_np, y_t_np = self._create_sequences(X_scaled, y_scaled)
-            # Sample weights also need to be aligned to the end of the sequence
+            X_seq, y_seq, idx = self.create_sequences(X_np, y_np, self.window_size)
+
             if sample_weight is not None:
-                sw_np = np.array(sample_weight)[self.window_size - 1:].astype(np.float32)
+                w_seq = np.array(sample_weight)[idx]
             else:
-                sw_np = np.ones(len(y_t_np), dtype=np.float32)
+                w_seq = np.ones_like(y_seq)
+
         else:
-            X_t_np, y_t_np = X_scaled, y_scaled
-            sw_np = np.array(sample_weight).astype(np.float32) if sample_weight is not None else np.ones_like(y_t_np)
+            X_seq, y_seq = X_np, y_np
+            w_seq = np.array(sample_weight) if sample_weight is not None else np.ones_like(y_seq)
 
-        X_t = torch.from_numpy(X_t_np).to(self.device)
-        y_t = torch.from_numpy(y_t_np).to(self.device)
-        w_t = torch.from_numpy(sw_np).to(self.device)
+        X_tensor = torch.from_numpy(X_seq).to(self.device)
+        y_tensor = torch.from_numpy(y_seq).to(self.device)
+        w_tensor = torch.from_numpy(w_seq).to(self.device)
 
-        dataset = torch.utils.data.TensorDataset(X_t, y_t, w_t)
+        dataset = torch.utils.data.TensorDataset(X_tensor, y_tensor, w_tensor)
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.params['batch_size'], shuffle=False)
+
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=self.params['lr'])
 
         self.model.train()
-        for epoch in range(self.params['epochs']):
+        for _ in range(self.params['epochs']):
             for batch_X, batch_y, batch_w in loader:
                 optimizer.zero_grad()
                 pred = self.model(batch_X).squeeze()
                 loss = (self.criterion(pred, batch_y) * batch_w).mean()
                 loss.backward()
                 optimizer.step()
+
         return self
 
-    def predict(self, X):
+    def predict(self, X, target_len=None):
         self.model.eval()
-        # To predict a single day, we need the preceding window_size rows from the dataset
-        X_scaled = self.feature_scaler.transform(X.values).astype(np.float32)
-        
+
+        X_np = self.feature_scaler.transform(X.values).astype(np.float32)
+
         if self.model_type in ["LSTM", "GRU"]:
-            X_t_np = self._create_sequences(X_scaled)
-            X_t = torch.from_numpy(X_t_np).to(self.device)
+            X_seq, idx = self.create_sequences(X_np, window_size=self.window_size)
+            X_tensor = torch.from_numpy(X_seq).to(self.device)
         else:
-            X_t = torch.from_numpy(X_scaled).to(self.device)
+            X_tensor = torch.from_numpy(X_np).to(self.device)
 
         with torch.no_grad():
-            preds_scaled = self.model(X_t).squeeze()
-            if preds_scaled.dim() == 0: preds_scaled = preds_scaled.unsqueeze(0)
-                
-        preds_np = preds_scaled.cpu().numpy()
-        return self.target_scaler.inverse_transform(preds_np.reshape(-1, 1)).flatten()
+            preds = self.model(X_tensor).squeeze()
+            if preds.dim() == 0:
+                preds = preds.unsqueeze(0)
+
+        preds_np = preds.cpu().numpy()
+        preds_final = self.target_scaler.inverse_transform(preds_np.reshape(-1, 1)).flatten()
+
+        # ✅ CRITICAL: deterministic slicing
+        if target_len is not None:
+            return preds_final[-target_len:]
+
+        return preds_final

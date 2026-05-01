@@ -2,12 +2,149 @@ import pandas as pd
 import numpy as np
 import optuna
 import lightgbm as lgb
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_absolute_error, root_mean_squared_error
 import xgboost as xgb
 from catboost import CatBoostRegressor
 import wandb
 from sklearn.ensemble import RandomForestRegressor
 from .dnn_model import UniversalTorchWrapper
+
+def run_dnn_pipeline(
+    ds,
+    FEATURES,
+    train_days,
+    val_days,
+    test_days,
+    n_trials,
+    seed,
+    study_name
+):
+
+    import numpy as np
+    import pandas as pd
+    import optuna
+    from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+
+    np.random.seed(seed)
+
+    # ---------------------------
+    # 🔒 STRICT SORT (CRITICAL)
+    # ---------------------------
+    ds = ds.sort_values("day").reset_index(drop=True)
+
+    # ---------------------------
+    # SPLIT DATA
+    # ---------------------------
+    ds_train = ds[ds["day"].isin(train_days)].copy()
+    ds_val   = ds[ds["day"].isin(val_days)].copy()
+    ds_test  = ds[ds["day"].isin(test_days)].copy()
+
+    # Ensure ordering inside splits
+    ds_train = ds_train.sort_values("day")
+    ds_val   = ds_val.sort_values("day")
+    ds_test  = ds_test.sort_values("day")
+
+    # ---------------------------
+    # FEATURE SELECTION (STRICT)
+    # ---------------------------
+    X_train = ds_train[FEATURES].copy()
+    y_train = ds_train["y_target"].copy()
+
+    X_val = ds_val[FEATURES].copy()
+    y_val = ds_val["y_target"].copy()
+
+    # 🔥 Safety check (prevents your previous crash)
+    assert all(np.issubdtype(dt, np.number) for dt in X_train.dtypes), \
+        f"Non-numeric columns in FEATURES: {X_train.dtypes}"
+
+    # ---------------------------
+    # OPTUNA OBJECTIVE
+    # ---------------------------
+    def objective(trial):
+
+        model = get_model("dnn", trial, FEATURES)
+
+        # ---- TRAIN ----
+        model.fit(X_train, y_train)
+
+        # ---- VALIDATION PRED ----
+        win = model.window_size
+
+        if len(X_train) < win:
+            return float("inf")  # not enough history
+
+        context = X_train.tail(win - 1)
+        X_val_full = pd.concat([context, X_val], axis=0)
+
+        preds = model.predict(
+            X_val_full,
+            target_len=len(X_val)
+        )
+
+        # 🔒 Hard alignment check
+        if len(preds) != len(y_val):
+            return float("inf")
+
+        return mean_absolute_error(y_val, preds)
+
+    sampler = optuna.samplers.TPESampler(seed=seed)
+
+    study = optuna.create_study(
+        direction="minimize",
+        sampler=sampler,
+        study_name = study_name
+    )
+
+    study.optimize(objective, n_trials=n_trials)
+
+    best_params = study.best_params
+    best_params["seed"] = seed
+
+    # ---------------------------
+    # 🔥 RETRAIN ON TRAIN + VAL
+    # ---------------------------
+    ds_trainval = pd.concat([ds_train, ds_val]).sort_values("day")
+
+    X_trainval = ds_trainval[FEATURES]
+    y_trainval = ds_trainval["y_target"]
+
+    model, _ = get_trained_model("dnn", best_params, FEATURES)
+
+    model.fit(X_trainval, y_trainval)
+
+    # ---------------------------
+    # TEST PREDICTION
+    # ---------------------------
+    win = model.window_size
+
+    if len(X_trainval) < win:
+        raise RuntimeError("Not enough history for DNN window")
+
+    context = X_trainval.tail(win - 1)
+    X_test_full = pd.concat([context, ds_test[FEATURES]], axis=0)
+
+    preds = model.predict(
+        X_test_full,
+        target_len=len(ds_test)
+    )
+
+    y_true = ds_test["y_target"].values
+
+    # 🔒 Final safety check
+    if len(preds) != len(y_true):
+        raise RuntimeError(
+            f"Prediction mismatch: {len(preds)} vs {len(y_true)}"
+        )
+
+    rmse = root_mean_squared_error(y_true, preds)
+    mae = mean_absolute_error(y_true, preds)
+
+    return {
+        "mae": mae,
+        "rmse": rmse,
+        "best_params": best_params
+    }
+
 
 def get_best_params(
     ds: pd.DataFrame,   
@@ -386,7 +523,8 @@ def get_trained_model(model_value:  str, best_params, FEATURE_COLS:list):
                 "lr": best_params["lr"],
                 "dropout": best_params["dropout"],
                 "batch_size": best_params["batch_size"],
-                "epochs": best_params["epoch"] 
+                "epochs": best_params["epoch"], 
+                "window_size" : best_params["window_size"]
             }
 
             model = UniversalTorchWrapper(model_type=arch, params=params, input_dim=current_input_dim)
