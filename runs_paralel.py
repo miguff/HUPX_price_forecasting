@@ -18,6 +18,22 @@ import matplotlib.pyplot as plt
 import json
 import argparse
 import os
+import random
+import torch
+
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+    # Ensures deterministic behavior
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 # ---------------------------
@@ -41,6 +57,7 @@ N_TRIALS = args.n_trials
 FINAL_TEST_DAYS = args.final_test_days
 OPTUNA_VAL_DAYS = args.optuna_val_days
 COUNTRY = args.country
+set_seed(42)
 MODEL = args.model
 
 

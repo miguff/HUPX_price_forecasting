@@ -294,6 +294,7 @@ def get_model(model_value : str, trial, FEATURE_COLS: list):
                 "dropout": trial.suggest_float("dropout", 0.0, 0.5),
                 "batch_size": trial.suggest_categorical("batch_size", [32, 64, 128]),
                 "epochs": trial.suggest_int("epoch", 5, 50), 
+                "window_size": trial.suggest_int("window_size", 96, 96*7),
             }
 
             return UniversalTorchWrapper(model_type=arch, params=params, input_dim=current_input_dim)

@@ -47,47 +47,54 @@ class UniversalTorchWrapper:
         self.model_type = model_type
         self.params = params
         self.input_dim = input_dim
+        # The 'window_size' should be a hyperparameter suggested by Optuna
+        self.window_size = params.get("window_size", 96) 
         
-        # Initialize Scalers
         self.feature_scaler = StandardScaler()
         self.target_scaler = StandardScaler()
 
         if model_type == "DNN":
             self.model = DynamicDNN(input_dim, params).to(self.device)
         else:
+            # RNN/LSTM now receives (batch, window_size, input_dim)
             self.model = DynamicRNN(input_dim, params, r_type=model_type).to(self.device)
             
         self.criterion = nn.HuberLoss()
 
-    def _prepare_data(self, X_np, y_np=None):
+    def _create_sequences(self, X_np, y_np=None):
         """
-        X_np and y_np MUST be numpy arrays, not DataFrames.
+        Converts flat tabular data into sequences of length self.window_size.
         """
-        X_tensor = torch.from_numpy(X_np).float().to(self.device)
+        X_seq, y_seq = [], []
+        # We need enough history to create the first window
+        for i in range(len(X_np) - self.window_size + 1):
+            X_seq.append(X_np[i : i + self.window_size])
+            if y_np is not None:
+                y_seq.append(y_np[i + self.window_size - 1])
         
-        if self.model_type in ["LSTM", "GRU"]:
-            # Reshape to (Batch, Sequence=1, Features)
-            X_tensor = X_tensor.view(-1, 1, self.input_dim)
-            
+        X_seq = np.array(X_seq)
         if y_np is not None:
-            y_tensor = torch.from_numpy(y_np).float().to(self.device)
-            return X_tensor, y_tensor
-        return X_tensor
+            return X_seq, np.array(y_seq)
+        return X_seq
 
     def fit(self, X, y, sample_weight=None):
-        # 1. Scale and convert to NumPy
         X_scaled = self.feature_scaler.fit_transform(X.values).astype(np.float32)
         y_scaled = self.target_scaler.fit_transform(y.values.reshape(-1, 1)).flatten().astype(np.float32)
 
-        X_t, y_t = self._prepare_data(X_scaled, y_scaled)
-        
-        # Handle sample weights for synthetic data
-        if sample_weight is not None:
-            # Ensure sample_weight is a numpy array before tensor conversion
-            sw_np = np.array(sample_weight).astype(np.float32)
-            w_t = torch.from_numpy(sw_np).to(self.device)
+        if self.model_type in ["LSTM", "GRU"]:
+            X_t_np, y_t_np = self._create_sequences(X_scaled, y_scaled)
+            # Sample weights also need to be aligned to the end of the sequence
+            if sample_weight is not None:
+                sw_np = np.array(sample_weight)[self.window_size - 1:].astype(np.float32)
+            else:
+                sw_np = np.ones(len(y_t_np), dtype=np.float32)
         else:
-            w_t = torch.ones_like(y_t)
+            X_t_np, y_t_np = X_scaled, y_scaled
+            sw_np = np.array(sample_weight).astype(np.float32) if sample_weight is not None else np.ones_like(y_t_np)
+
+        X_t = torch.from_numpy(X_t_np).to(self.device)
+        y_t = torch.from_numpy(y_t_np).to(self.device)
+        w_t = torch.from_numpy(sw_np).to(self.device)
 
         dataset = torch.utils.data.TensorDataset(X_t, y_t, w_t)
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.params['batch_size'], shuffle=False)
@@ -98,8 +105,6 @@ class UniversalTorchWrapper:
             for batch_X, batch_y, batch_w in loader:
                 optimizer.zero_grad()
                 pred = self.model(batch_X).squeeze()
-                
-                # Weighted Loss
                 loss = (self.criterion(pred, batch_y) * batch_w).mean()
                 loss.backward()
                 optimizer.step()
@@ -107,22 +112,18 @@ class UniversalTorchWrapper:
 
     def predict(self, X):
         self.model.eval()
-        
-        # 1. Scale features using the FIT from the training slice
+        # To predict a single day, we need the preceding window_size rows from the dataset
         X_scaled = self.feature_scaler.transform(X.values).astype(np.float32)
-        X_t = self._prepare_data(X_scaled)
         
+        if self.model_type in ["LSTM", "GRU"]:
+            X_t_np = self._create_sequences(X_scaled)
+            X_t = torch.from_numpy(X_t_np).to(self.device)
+        else:
+            X_t = torch.from_numpy(X_scaled).to(self.device)
+
         with torch.no_grad():
             preds_scaled = self.model(X_t).squeeze()
-            
-            # Handle single-row prediction edge case
-            if preds_scaled.dim() == 0:
-                preds_scaled = preds_scaled.unsqueeze(0)
+            if preds_scaled.dim() == 0: preds_scaled = preds_scaled.unsqueeze(0)
                 
-        # 2. Convert back to CPU/Numpy
         preds_np = preds_scaled.cpu().numpy()
-        
-        # 3. Inverse transform to get back to real price units (e.g. EUR/MWh)
-        preds_final = self.target_scaler.inverse_transform(preds_np.reshape(-1, 1)).flatten()
-        
-        return preds_final
+        return self.target_scaler.inverse_transform(preds_np.reshape(-1, 1)).flatten()
