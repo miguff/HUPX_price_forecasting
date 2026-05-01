@@ -1,0 +1,15 @@
+{
+  "synth_weight": 0.5063856810665023,
+  "retrain_every": 2,
+  "xgb_n_estimators": 2081,
+  "xgb_lr": 0.012482561197194,
+  "xgb_max_depth": 11,
+  "xgb_min_child_weight": 0.21900639567276486,
+  "xgb_subsample": 0.8307747039424201,
+  "xgb_colsample": 0.6014778338500401,
+  "xgb_reg_alpha": 4.707213936800899e-05,
+  "xgb_reg_lambda": 2.042599721321422e-06,
+  "xgb_gamma": 4.531043209993723,
+  "xgb_max_delta_step": 9,
+  "seed": 11
+}

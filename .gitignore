@@ -2,3 +2,6 @@ wandb/*
 catboost_info/*
 
 *.env.*
+venv/*
+
+*.txt

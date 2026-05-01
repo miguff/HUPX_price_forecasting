@@ -244,6 +244,7 @@ def get_model(model_value : str, trial, FEATURE_COLS: list):
                     n_jobs=-1,
 
                     tree_method="hist",
+                    device="cuda",
                     verbosity=0,
                 )
             return model
@@ -257,6 +258,7 @@ def get_model(model_value : str, trial, FEATURE_COLS: list):
                     objective='RMSE',
                     task_type='GPU',
                     boosting_type='Plain',
+                    devices="0"
                 )
             return model
         case "rf":
@@ -335,6 +337,7 @@ def get_trained_model(model_value:  str, best_params, FEATURE_COLS:list):
                 "n_jobs": -1,
                 "tree_method": "hist",                         # use "gpu_hist" if you have CUDA
                 "verbosity": 0,
+                "device":"cuda",
                 # Optional: align evaluation metric with your reporting metric
                 "eval_metric": "mae",
             }
@@ -352,6 +355,7 @@ def get_trained_model(model_value:  str, best_params, FEATURE_COLS:list):
                 "silent" : True,
                 "task_type" : "GPU",
                 "boosting_type":'Plain',
+                "devices" : "0"
             }
 
             model = CatBoostRegressor(**params)
