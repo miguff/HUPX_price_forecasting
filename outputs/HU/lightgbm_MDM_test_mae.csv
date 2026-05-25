@@ -1,0 +1,4 @@
+Challenger Method,DM_Statistic,p_value,Sig_Standard (p<0.05),Sig_Bonferroni (p<0.017),Statistical Winner
+Synth_LGBM,2.038701930280104,0.041479785000131164,True,False,Statistical Tie
+Synth_Spline,1.5122921036317711,0.13045956896740063,False,False,Statistical Tie
+Synth_Intra,1.6301415645353239,0.10307158081534284,False,False,Statistical Tie

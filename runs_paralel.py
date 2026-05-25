@@ -68,7 +68,8 @@ MODEL = args.model
 def main(args):
 
     # 👉 Slurm array ID = unique run
-    RUN_ID = int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
+    #// Ez csak átmeneti - mindig át kell írni
+    RUN_ID = 0 # int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
     seed = RUN_ID
 
     print(f"\n============================")
