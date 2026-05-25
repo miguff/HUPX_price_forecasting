@@ -1,0 +1,12 @@
+{
+  "synth_weight": 1.0,
+  "retrain_every": 1,
+  "architecture": "LSTM",
+  "n_layers": 2,
+  "h1": 64,
+  "lr": 0.001,
+  "dropout": 0.1,
+  "batch_size": 32,
+  "epochs": 20,
+  "window_size": 96
+}
