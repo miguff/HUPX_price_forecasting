@@ -75,7 +75,7 @@ def get_default_params(model_name: str, seed: int):
     elif model_name == "dnn":
         model_params = {
             "architecture": "LSTM", "n_layers": 2, "h1": 64, "lr": 1e-3,
-            "dropout": 0.1, "batch_size": 32, "epochs": 20, "window_size": 96
+            "dropout": 0.1, "batch_size": 32, "epochs": 20, "window_size": 96*7, "pred_horizon" : 96
             # DNN handles seed globally via set_seed(), so no parameter change needed here
         }
     else:
