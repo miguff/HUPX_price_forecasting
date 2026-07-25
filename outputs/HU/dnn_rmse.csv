@@ -1,0 +1,4 @@
+method,rmse_mean,diff_mean,ci_low,ci_high,p_value,effect_size_d,p_corrected,significant,improvement_%
+Synth LGBM,39.2175,-4.5607,-6.4749,-2.6465,1.59e-04,-1.319,2.05e-04,True,10.42
+Spline,38.1234,-5.6548,-6.9272,-4.3824,1.69e-07,-2.461,5.06e-07,True,12.92
+Intra,39.6241,-4.1541,-5.82,-2.4883,1.03e-04,-1.381,2.05e-04,True,9.49
