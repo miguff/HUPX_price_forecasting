@@ -1,0 +1,14 @@
+{
+  "synth_weight": 1.0,
+  "retrain_every": 1,
+  "depth": 6,
+  "learning_rate": 0.05,
+  "iterations": 500,
+  "l2_leaf_reg": 3,
+  "silent": true,
+  "objective": "RMSE",
+  "task_type": "GPU",
+  "boosting_type": "Plain",
+  "devices": "0",
+  "random_seed": 42
+}

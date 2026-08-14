@@ -24,19 +24,36 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
+ALL_MODELS = ["catboost", "lightgbm", "rf", "xgboost", "dnn"]
+ALL_DATASETS = ["real", "lgbm", "spline", "intra", "ctgan", "par"]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Run Evaluation Pipeline")
     parser.add_argument("--final_test_days", type=int, default=30)
     parser.add_argument("--country", type=str, default="HU")
-    parser.add_argument("--model", type=str, default="catboost")
+    parser.add_argument("--models", type=str, nargs="+", default=["catboost"],
+                        help=f"Model(s) to run. Choices: {ALL_MODELS} or 'all'")
+    parser.add_argument("--datasets", type=str, nargs="+", default=["real", "lgbm", "spline", "intra"],
+                        help=f"Dataset(s) to run. Choices: {ALL_DATASETS} or 'all'")
     return parser.parse_args()
+
+
+def resolve_choices(choices, all_options):
+    if "all" in choices:
+        return all_options
+    invalid = set(choices) - set(all_options)
+    if invalid:
+        raise ValueError(f"Invalid choice(s): {invalid}. Valid options: {all_options} or 'all'")
+    return choices
 
 
 args = parse_args()
 
 FINAL_TEST_DAYS = args.final_test_days
 COUNTRY = args.country
-MODEL = args.model
+MODELS = resolve_choices(args.models, ALL_MODELS)
+DATASETS = resolve_choices(args.datasets, ALL_DATASETS)
 
 
 
@@ -85,22 +102,22 @@ def get_default_params(model_name: str, seed: int):
 
 
 def main(args):
-    #MODEL_library = ["catboost", "lightgbm", "rf", "xgboost"]
-    MODEL_library = ["dnn"]
-    for MODEL in MODEL_library:
+    if torch.cuda.is_available():
+        device_name = torch.cuda.get_device_name(0)
+        print(f"Device: GPU ({device_name})")
+    else:
+        print("Device: CPU")
+
+    for MODEL in MODELS:
         print(f"\n============================")
         print(f"MODEL: {MODEL}")
         print(f"COUNTRY: {COUNTRY}")
+        print(f"DATASETS: {DATASETS}")
         print(f"============================\n")
 
         # 1. Load data ONCE outside the loop to save time
         print("Loading datasets...")
-        datasets = {
-            "real": load_data("real", COUNTRY),
-            "lgbm": load_data("lgbm", COUNTRY),
-            "spline": load_data("spline", COUNTRY),
-            "intra": load_data("intra", COUNTRY)
-        }
+        datasets = {ds: load_data(ds, COUNTRY) for ds in DATASETS}
 
         # 2. Setup output directory
         os.makedirs(f"outputs/{COUNTRY}", exist_ok=True)

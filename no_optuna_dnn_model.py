@@ -33,7 +33,7 @@ class DynamicRNN(nn.Module):
             batch_first=True, 
             dropout=params.get('dropout', 0.0) if params.get('n_layers', 1) > 1 else 0
         )
-        self.fc = nn.Linear(params['h1'], 1)
+        self.fc = nn.Linear(params['h1'], params.get('pred_horizon', 96))
         
     def forward(self, x):
         out, _ = self.rnn(x)
@@ -103,9 +103,9 @@ class UniversalTorchWrapper:
             X_seq, y_seq = X_np, y_np
             w_seq = np.array(sample_weight) if sample_weight is not None else np.ones_like(y_seq)
 
-        X_tensor = torch.from_numpy(X_seq).to(self.device)
-        y_tensor = torch.from_numpy(y_seq).to(self.device)
-        w_tensor = torch.from_numpy(w_seq).to(self.device)
+        X_tensor = torch.from_numpy(X_seq)
+        y_tensor = torch.from_numpy(y_seq)
+        w_tensor = torch.from_numpy(w_seq)
 
         dataset = torch.utils.data.TensorDataset(X_tensor, y_tensor, w_tensor)
         loader = torch.utils.data.DataLoader(dataset, batch_size=self.params.get('batch_size', 64), shuffle=False)
@@ -115,6 +115,9 @@ class UniversalTorchWrapper:
         self.model.train()
         for _ in range(self.params.get('epochs', 10)):
             for batch_X, batch_y, batch_w in loader:
+                batch_X = batch_X.to(self.device)
+                batch_y = batch_y.to(self.device)
+                batch_w = batch_w.to(self.device)
                 optimizer.zero_grad()
                 pred = self.model(batch_X) 
                 
@@ -130,29 +133,38 @@ class UniversalTorchWrapper:
 
     def predict(self, X):
         """
-        Predicts the next 96 values into the future based on the most recent 672 values in X.
+        Walk-forward prediction. For RNN models, slides a window of size
+        window_size across X in steps of pred_horizon, predicting pred_horizon
+        values at each step. For DNN models, feeds all rows directly.
         """
         self.model.eval()
 
-        # To predict the future, we only need the most recent 672 records
-        if len(X) < self.window_size:
-            raise ValueError(f"Input X must have at least {self.window_size} rows to predict.")
-            
-        X_latest = X.iloc[-self.window_size:] 
-        X_np = self.feature_scaler.transform(X_latest.values).astype(np.float32)
-
         if self.model_type in ["LSTM", "GRU"]:
-            # Add a batch dimension: Shape becomes (1, 672, num_features)
-            X_tensor = torch.from_numpy(X_np).unsqueeze(0).to(self.device)
+            if len(X) < self.window_size:
+                raise ValueError(f"Input X must have at least {self.window_size} rows to predict.")
+
+            X_np = self.feature_scaler.transform(X.values).astype(np.float32)
+            all_preds = []
+
+            for start in range(0, len(X) - self.window_size + 1, self.pred_horizon):
+                window = X_np[start : start + self.window_size]
+                X_tensor = torch.from_numpy(window).unsqueeze(0).to(self.device)
+
+                with torch.no_grad():
+                    preds = self.model(X_tensor)
+
+                all_preds.append(preds.cpu().numpy().flatten())
+
+            preds_final = np.concatenate(all_preds)
+            preds_final = self.target_scaler.inverse_transform(preds_final.reshape(-1, 1)).flatten()
+            return preds_final
         else:
+            X_np = self.feature_scaler.transform(X.values).astype(np.float32)
             X_tensor = torch.from_numpy(X_np).to(self.device)
 
-        with torch.no_grad():
-            preds = self.model(X_tensor) 
+            with torch.no_grad():
+                preds = self.model(X_tensor)
 
-        preds_np = preds.cpu().numpy()
-        
-        # Inverse transform the 96 predicted values back to original scale
-        preds_final = self.target_scaler.inverse_transform(preds_np.reshape(-1, 1)).flatten()
-
-        return preds_final
+            preds_np = preds.cpu().numpy()
+            preds_final = self.target_scaler.inverse_transform(preds_np.reshape(-1, 1)).flatten()
+            return preds_final

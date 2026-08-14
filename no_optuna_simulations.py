@@ -64,10 +64,10 @@ def run_dnn_evaluation(ds, FEATURES, train_days, test_days, params, seed):
     if len(X_train) < win:
         raise RuntimeError("Not enough history for DNN window")
 
-    context = X_train.tail(win - 1)
+    context = X_train.tail(win - model.pred_horizon)
     X_test_full = pd.concat([context, ds_test[FEATURES]], axis=0)
 
-    preds = model.predict(X_test_full, target_len=len(ds_test))
+    preds = model.predict(X_test_full)
     y_true = ds_test["y_target"].values
 
     if len(preds) != len(y_true):
