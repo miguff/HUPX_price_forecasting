@@ -1,4 +1,4 @@
 Challenger Method,DM_Statistic,p_value,Sig_Standard (p<0.05),Sig_Bonferroni (p<0.017),Statistical Winner
-Synth_LGBM,-3.339382803941473,0.0008396477152992077,True,True,Real (Baseline)
-Synth_Spline,-2.5539904249419902,0.010649618509442904,True,True,Real (Baseline)
-Synth_Intra,-4.108128230856944,3.98878634644273e-05,True,True,Real (Baseline)
+Synth_LGBM,1.1966222337611647,0.23145383037166178,False,False,Statistical Tie
+Synth_Spline,1.8661334939481464,0.062022690934508296,False,False,Statistical Tie
+Synth_Intra,2.317838059167203,0.020458123818887675,True,False,Statistical Tie

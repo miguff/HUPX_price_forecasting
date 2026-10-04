@@ -45,10 +45,10 @@ def get_model_from_params(model_value: str, params: dict, feature_cols: list):
 def run_dnn_evaluation(ds, FEATURES, train_days, test_days, params, seed):
     set_seed(seed)
 
-    ds = ds.sort_values("day").reset_index(drop=True)
+    ds = ds.sort_values("day", kind="stable").reset_index(drop=True)
 
-    ds_train = ds[ds["day"].isin(train_days)].copy().sort_values("day")
-    ds_test  = ds[ds["day"].isin(test_days)].copy().sort_values("day")
+    ds_train = ds[ds["day"].isin(train_days)].copy().sort_values("day", kind="stable")
+    ds_test  = ds[ds["day"].isin(test_days)].copy().sort_values("day", kind="stable")
 
     X_train = ds_train[FEATURES].copy()
     y_train = ds_train["y_target"].copy()
@@ -64,11 +64,12 @@ def run_dnn_evaluation(ds, FEATURES, train_days, test_days, params, seed):
     if len(X_train) < win:
         raise RuntimeError("Not enough history for DNN window")
 
-    context = X_train.tail(win - model.pred_horizon)
+    context = X_train.tail(win)
     X_test_full = pd.concat([context, ds_test[FEATURES]], axis=0)
 
     preds = model.predict(X_test_full)
     y_true = ds_test["y_target"].values
+    preds = preds[:len(y_true)]
 
     if len(preds) != len(y_true):
         raise RuntimeError(f"Prediction mismatch: {len(preds)} vs {len(y_true)}")

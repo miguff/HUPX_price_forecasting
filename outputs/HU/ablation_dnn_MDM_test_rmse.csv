@@ -1,6 +1,4 @@
-Challenger Method,DM_Statistic,p_value,Sig_Standard (p<0.05),Sig_Bonferroni (p<0.010),Statistical Winner
-Synth_LGBM,-0.69882142529446,0.484663637147178,False,False,Statistical Tie
-Synth_Spline,-0.7816678424204555,0.4344098050837688,False,False,Statistical Tie
-Synth_Intra,-0.9481464428972493,0.34305490772203084,False,False,Statistical Tie
-Synth_CTGAN,-1.4694560803627332,0.1417091259706269,False,False,Statistical Tie
-Synth_PAR,-1.7576127694872683,0.0788134191221479,False,False,Statistical Tie
+Challenger Method,DM_Statistic,p_value,Sig_Standard (p<0.05),Sig_Bonferroni (p<0.017),Statistical Winner
+Synth_LGBM,6.446969162960743,1.1410894451557851e-10,True,True,Synth_LGBM
+Synth_Spline,6.019553605844613,1.7489873993525862e-09,True,True,Synth_Spline
+Synth_Intra,6.102615315461081,1.0434677566451e-09,True,True,Synth_Intra

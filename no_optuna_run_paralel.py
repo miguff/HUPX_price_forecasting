@@ -36,6 +36,8 @@ def parse_args():
                         help=f"Model(s) to run. Choices: {ALL_MODELS} or 'all'")
     parser.add_argument("--datasets", type=str, nargs="+", default=["real", "lgbm", "spline", "intra"],
                         help=f"Dataset(s) to run. Choices: {ALL_DATASETS} or 'all'")
+    parser.add_argument("--study", type=str, default="ablation", choices=["base", "ablation"],
+                        help="Study type: 'base' or 'ablation'")
     return parser.parse_args()
 
 
@@ -54,6 +56,8 @@ FINAL_TEST_DAYS = args.final_test_days
 COUNTRY = args.country
 MODELS = resolve_choices(args.models, ALL_MODELS)
 DATASETS = resolve_choices(args.datasets, ALL_DATASETS)
+STUDY = args.study
+STUDY_PREFIX = "ablation_" if STUDY == "ablation" else ""
 
 
 
@@ -117,7 +121,7 @@ def main(args):
 
         # 1. Load data ONCE outside the loop to save time
         print("Loading datasets...")
-        datasets = {ds: load_data(ds, COUNTRY) for ds in DATASETS}
+        datasets = {ds: load_data(ds, COUNTRY, STUDY) for ds in DATASETS}
 
         # 2. Setup output directory
         os.makedirs(f"outputs/{COUNTRY}", exist_ok=True)
@@ -142,17 +146,17 @@ def main(args):
             # 4. Save results for this specific run
             print(f"Saving results for RUN {RUN_ID}...")
             for ds_name, res in results.items():
-                np.save(f"outputs/{COUNTRY}/{MODEL}_ablation_run{RUN_ID}_{ds_name}_rmse.npy", res["rmse"])
-                np.save(f"outputs/{COUNTRY}/{MODEL}_ablation_run{RUN_ID}_{ds_name}_mae.npy", res["mae"])
+                np.save(f"outputs/{COUNTRY}/{MODEL}_{STUDY_PREFIX}run{RUN_ID}_{ds_name}_rmse.npy", res["rmse"])
+                np.save(f"outputs/{COUNTRY}/{MODEL}_{STUDY_PREFIX}run{RUN_ID}_{ds_name}_mae.npy", res["mae"])
                 
                 # Save predictions for Diebold-Mariano test
-                np.save(f"outputs/{COUNTRY}/{MODEL}_ablation_run{RUN_ID}_{ds_name}_y_true.npy", res["y_true"])
-                np.save(f"outputs/{COUNTRY}/{MODEL}_ablation_run{RUN_ID}_{ds_name}_y_pred.npy", res["y_pred"])
+                np.save(f"outputs/{COUNTRY}/{MODEL}_{STUDY_PREFIX}run{RUN_ID}_{ds_name}_y_true.npy", res["y_true"])
+                np.save(f"outputs/{COUNTRY}/{MODEL}_{STUDY_PREFIX}run{RUN_ID}_{ds_name}_y_pred.npy", res["y_pred"])
 
         # 5. Save the fixed hyperparameter configuration once at the end
         # (Passing 42 just to grab the dictionary structure; the actual seeds changed dynamically)
         params_used = get_default_params(MODEL, seed=42) 
-        with open(f"outputs/{COUNTRY}/{MODEL}__ablation_base_params.json", "w") as f:
+        with open(f"outputs/{COUNTRY}/{MODEL}__{STUDY_PREFIX or 'base'}_params.json", "w") as f:
             json.dump(params_used, f, indent=2)
             
         print(f"\nAll {TOTAL_RUNS} runs completed successfully!")
